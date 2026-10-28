@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Star, ShieldCheck, Truck, RotateCcw, Check, ShoppingBag, Plus, Minus } from "lucide-react";
 import { PRIMARY_PRODUCT, VARIANTS } from "@/lib/data";
@@ -17,6 +17,13 @@ export function ProductDetailSection({ selectedVariantId }: ProductDetailSection
   const [activeImageKey, setActiveImageKey] = useState<"hero" | "exploded" | "ingredients" | "lifestyle">("hero");
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"overview" | "ingredients" | "shipping" | "storage">("overview");
+
+  useEffect(() => {
+    if (selectedVariantId) {
+      const found = VARIANTS.find((v) => v.id === selectedVariantId);
+      if (found) setActiveVariant(found);
+    }
+  }, [selectedVariantId]);
 
   const { addItem } = useCart();
 

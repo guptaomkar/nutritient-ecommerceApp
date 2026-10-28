@@ -1,36 +1,65 @@
 "use client";
 
 import React, { useEffect } from "react";
+import Lenis from "lenis";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 export function SmoothScrollProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Global scroll progress indicator (GPU accelerated transform: scaleX)
-    const progressBar = document.getElementById("global-scroll-progress");
-    if (!progressBar) return;
+    // Register GSAP plugins
+    gsap.registerPlugin(ScrollTrigger);
 
-    let ticking = false;
+    // Check reduced motion
+    const isReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (isReduced) {
+      return;
+    }
 
-    const handleScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-          if (docHeight > 0) {
-            const progress = window.scrollY / docHeight;
-            progressBar.style.transform = `scaleX(${Math.min(1, Math.max(0, progress))})`;
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
+    // Initialize Lenis
+    const lenis = new Lenis({
+      duration: 1.1,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: "vertical",
+      gestureOrientation: "vertical",
+      smoothWheel: true,
+      wheelMultiplier: 0.9,
+      syncTouch: false, // Never hijack mobile touch gestures
+    });
+
+    // Synchronize Lenis with GSAP ScrollTrigger
+    lenis.on("scroll", ScrollTrigger.update);
+
+    const tickerCallback = (time: number) => {
+      lenis.raf(time * 1000);
     };
 
+    gsap.ticker.add(tickerCallback);
+    gsap.ticker.lagSmoothing(0);
+
+    // Scroll progress bar
+    const progressBar = document.getElementById("global-scroll-progress");
+    const handleScroll = () => {
+      if (!progressBar) return;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight > 0) {
+        const progress = window.scrollY / docHeight;
+        progressBar.style.transform = `scaleX(${Math.min(1, Math.max(0, progress))})`;
+      }
+    };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      gsap.ticker.remove(tickerCallback);
+      lenis.destroy();
+      ScrollTrigger.getAll().forEach((st) => st.kill());
+    };
   }, []);
 
   return (
     <>
-      {/* Global Scroll Progress Indicator (Accessible & GPU Accelerated) */}
+      {/* GPU Accelerated Scroll Indicator */}
       <div
         id="global-scroll-progress"
         aria-hidden="true"

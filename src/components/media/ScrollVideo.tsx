@@ -2,7 +2,8 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 interface ScrollVideoProps {
   src: string;
@@ -11,6 +12,10 @@ interface ScrollVideoProps {
   className?: string;
   overlayOpacity?: number;
   priority?: boolean;
+  progress?: number; // Controlled external progress (0 to 1) from parent ScrollTrigger
+  triggerPin?: boolean; // Autonomous mode: whether ScrollVideo should pin its container
+  pinDistance?: string; // e.g. "+=200%"
+  onProgress?: (p: number) => void;
 }
 
 export function ScrollVideo({
@@ -20,18 +25,26 @@ export function ScrollVideo({
   className = "",
   overlayOpacity = 0.15,
   priority = false,
+  progress: externalProgress,
+  triggerPin = false,
+  pinDistance = "+=200%",
+  onProgress,
 }: ScrollVideoProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [hasPlayedFirstFrame, setHasPlayedFirstFrame] = useState(false);
-  const [isInView, setIsInView] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isInView, setIsInView] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [firstFrameRendered, setFirstFrameRendered] = useState(false);
 
-  // Check reduced motion preference
+  const targetTimeRef = useRef(0);
+  const isSeekingRef = useRef(false);
+  const durationRef = useRef(0);
+  const internalProgressRef = useRef(0);
+
+  // Check reduced motion
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setPrefersReducedMotion(mq.matches);
@@ -40,7 +53,7 @@ export function ScrollVideo({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // IntersectionObserver: Only activate video when in view
+  // Viewport IntersectionObserver
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -49,124 +62,159 @@ export function ScrollVideo({
       ([entry]) => {
         setIsInView(entry.isIntersecting);
       },
-      { rootMargin: "150px 0px 150px 0px", threshold: [0, 0.25, 0.5] }
+      { rootMargin: "200px 0px 200px 0px", threshold: [0, 0.1, 0.5] }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  // Manage Play / Pause based on viewport visibility
+  // Handle video metadata loaded
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isFinite(video.duration) && video.duration > 0) {
+      durationRef.current = video.duration;
+      setIsLoaded(true);
+      // Pre-seek to first frame so it is buffered and decoded
+      try {
+        video.currentTime = 0.001;
+      } catch {
+        // Ignored
+      }
+    }
+  }, []);
+
+  const handleSeeked = useCallback(() => {
+    isSeekingRef.current = false;
+    setFirstFrameRendered(true);
+
+    // If target changed while seeking, seek again
+    const video = videoRef.current;
+    if (video && durationRef.current > 0) {
+      const delta = Math.abs(video.currentTime - targetTimeRef.current);
+      if (delta > 0.04) {
+        isSeekingRef.current = true;
+        try {
+          if ("fastSeek" in video && typeof (video as unknown as { fastSeek: (t: number) => void }).fastSeek === "function") {
+            (video as unknown as { fastSeek: (t: number) => void }).fastSeek(targetTimeRef.current);
+          } else {
+            video.currentTime = targetTimeRef.current;
+          }
+        } catch {
+          isSeekingRef.current = false;
+        }
+      }
+    }
+  }, []);
+
+  // Coalesced seek function
+  const seekToProgress = useCallback((p: number) => {
+    const video = videoRef.current;
+    const dur = durationRef.current;
+    if (!video || dur <= 0) return;
+
+    const clampedProgress = Math.max(0, Math.min(1, p));
+    const target = clampedProgress * dur;
+    targetTimeRef.current = target;
+
+    if (!isSeekingRef.current && video.readyState >= 2) {
+      const delta = Math.abs(video.currentTime - target);
+      if (delta > 0.03) {
+        isSeekingRef.current = true;
+        try {
+          if ("fastSeek" in video && typeof (video as unknown as { fastSeek: (t: number) => void }).fastSeek === "function") {
+            (video as unknown as { fastSeek: (t: number) => void }).fastSeek(target);
+          } else {
+            video.currentTime = target;
+          }
+        } catch {
+          isSeekingRef.current = false;
+        }
+      }
+    }
+  }, []);
+
+  // Controlled mode: when externalProgress is provided
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || prefersReducedMotion || hasError) return;
-
-    if (isInView) {
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => setIsPlaying(true))
-          .catch(() => {
-            // Autoplay prevented by browser policy; poster remains cleanly visible
-          });
-      }
-    } else {
-      if (!video.paused) {
-        video.pause();
-        setIsPlaying(false);
-      }
+    if (typeof externalProgress === "number" && !prefersReducedMotion && isInView) {
+      seekToProgress(externalProgress);
     }
-  }, [isInView, prefersReducedMotion, hasError]);
+  }, [externalProgress, prefersReducedMotion, isInView, seekToProgress]);
 
-  const togglePlay = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
+  // Autonomous mode: when triggerPin is true and no externalProgress
+  useEffect(() => {
+    if (typeof externalProgress === "number" || !triggerPin || prefersReducedMotion) return;
 
-    if (video.paused) {
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
-    } else {
-      video.pause();
-      setIsPlaying(false);
-    }
-  }, []);
+    const container = containerRef.current;
+    if (!container) return;
 
-  const toggleMute = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
-  }, []);
+    gsap.registerPlugin(ScrollTrigger);
 
-  const handlePlaying = useCallback(() => {
-    setHasPlayedFirstFrame(true);
-    setIsPlaying(true);
-  }, []);
+    const st = ScrollTrigger.create({
+      trigger: container,
+      start: "top top",
+      end: pinDistance,
+      pin: true,
+      scrub: 0.3,
+      onUpdate: (self) => {
+        internalProgressRef.current = self.progress;
+        seekToProgress(self.progress);
+        if (onProgress) onProgress(self.progress);
+      },
+    });
+
+    return () => {
+      st.kill();
+    };
+  }, [triggerPin, pinDistance, externalProgress, prefersReducedMotion, onProgress, seekToProgress]);
 
   return (
     <div
       ref={containerRef}
-      className={`relative overflow-hidden rounded-sm bg-[#E9E4DB] group ${className}`}
+      className={`relative overflow-hidden rounded-sm bg-[#E9E4DB] ${className}`}
       style={{ aspectRatio: "16/9" }}
     >
-      {/* High-Resolution Poster (Never flashes blank; remains visible until video actually starts playing) */}
+      {/* High-Resolution Poster Image (Guaranteed fallback, visible until first frame is rendered) */}
       <Image
         src={poster}
         alt={alt}
         fill
         sizes="(max-width: 1024px) 100vw, 1200px"
-        className={`object-cover transition-opacity duration-700 ${
-          hasPlayedFirstFrame && !hasError && !prefersReducedMotion ? "opacity-0" : "opacity-100"
+        className={`object-cover transition-opacity duration-500 ${
+          firstFrameRendered && !hasError && !prefersReducedMotion ? "opacity-0" : "opacity-100"
         }`}
         priority={priority}
         loading={priority ? "eager" : "lazy"}
       />
 
-      {/* HTML5 Video Element (Muted, looping, playsInline) */}
+      {/* HTML5 Video Element (Muted, playsInline, NO autoplay attribute for scrubbed videos) */}
       {!prefersReducedMotion && !hasError && (
         <video
           ref={videoRef}
           src={src}
           poster={poster}
-          muted={isMuted}
+          muted
           playsInline
-          loop
-          preload="metadata"
-          onPlaying={handlePlaying}
+          preload="auto"
+          onLoadedMetadata={handleLoadedMetadata}
+          onSeeked={handleSeeked}
           onError={() => setHasError(true)}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-            hasPlayedFirstFrame ? "opacity-100" : "opacity-0"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+            firstFrameRendered ? "opacity-100" : "opacity-0"
           }`}
           aria-hidden="true"
         />
       )}
 
-      {/* Subtle Warm Tone Tint */}
+      {/* Editorial Atmosphere Overlay */}
       {overlayOpacity > 0 && (
         <div
           className="pointer-events-none absolute inset-0 bg-[#20211F]"
           style={{ opacity: overlayOpacity }}
           aria-hidden="true"
         />
-      )}
-
-      {/* Minimalist Floating Controls Pill (Unobtrusive & Luxury Standard) */}
-      {hasPlayedFirstFrame && !hasError && !prefersReducedMotion && (
-        <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-1.5 bg-[#20211F]/70 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/15 text-white/90 opacity-75 hover:opacity-100 transition-opacity">
-          <button
-            onClick={togglePlay}
-            className="p-1 hover:text-white transition-colors cursor-pointer"
-            aria-label={isPlaying ? "Pause video" : "Play video"}
-          >
-            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            onClick={toggleMute}
-            className="p-1 hover:text-white transition-colors cursor-pointer"
-            aria-label={isMuted ? "Unmute video" : "Mute video"}
-          >
-            {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
       )}
     </div>
   );
