@@ -193,6 +193,7 @@ export function ScrollVideo({
           isLoaded && !hasError && !prefersReducedMotion ? "opacity-0" : "opacity-100"
         }`}
         priority={priority}
+        loading={priority ? "eager" : "lazy"}
       />
 
       {/* HTML5 Video Element */}
