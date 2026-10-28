@@ -49,11 +49,16 @@ export function SmoothScrollProvider({ children }: { children: React.ReactNode }
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
 
+    // Ensure ScrollTrigger measures the layout after initial mount
+    const refreshTimer = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 150);
+
     return () => {
+      clearTimeout(refreshTimer);
       window.removeEventListener("scroll", handleScroll);
       gsap.ticker.remove(tickerCallback);
       lenis.destroy();
-      ScrollTrigger.getAll().forEach((st) => st.kill());
     };
   }, []);
 

@@ -63,10 +63,11 @@ export function HeroSection() {
             src={ASSETS.videos.hero.src}
             poster={ASSETS.images.explodedTub.src}
             alt={ASSETS.videos.hero.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full"
             overlayOpacity={0.35}
             priority={true}
             progress={progress}
+            aspectRatio="none"
           />
           {/* Subtle Ambient Micro-Particles */}
           <PowderParticles particleCount={30} />
