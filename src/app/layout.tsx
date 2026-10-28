@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
+import { SmoothScrollProvider } from "@/components/providers/SmoothScrollProvider";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -67,7 +68,9 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#F5F3EE] text-[#20211F]">
-        <CartProvider>{children}</CartProvider>
+        <SmoothScrollProvider>
+          <CartProvider>{children}</CartProvider>
+        </SmoothScrollProvider>
       </body>
     </html>
   );

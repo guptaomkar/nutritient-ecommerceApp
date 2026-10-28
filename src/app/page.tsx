@@ -16,6 +16,7 @@ import { ProductDetailSection } from "@/components/sections/ProductDetailSection
 import { NutritionSection } from "@/components/sections/NutritionSection";
 import { TrustFaqSection } from "@/components/sections/TrustFaqSection";
 import { ConversionCtaSection } from "@/components/sections/ConversionCtaSection";
+import { StickyQuickBuyBar } from "@/components/layout/StickyQuickBuyBar";
 
 export default function Home() {
   const [selectedDetailVariantId, setSelectedDetailVariantId] = useState<string>("np-choc-vanilla-960");
@@ -67,6 +68,9 @@ export default function Home() {
 
       {/* Editorial Footer */}
       <Footer />
+
+      {/* Floating Modern Ecommerce Quick-Buy Bar */}
+      <StickyQuickBuyBar />
 
       {/* Persistent Shopping Cart Drawer */}
       <CartDrawer />

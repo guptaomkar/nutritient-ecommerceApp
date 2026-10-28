@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Check, Info, ShieldAlert } from "lucide-react";
 import { ASSETS } from "@/lib/assets";
 import { PRIMARY_PRODUCT } from "@/lib/data";
+import { ScrollVideo } from "@/components/media/ScrollVideo";
 
 export function IngredientAtlasSection() {
   const [selectedIngredient, setSelectedIngredient] = useState(PRIMARY_PRODUCT.ingredients[0]);
@@ -29,17 +30,15 @@ export function IngredientAtlasSection() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
           {/* Visual Showcase (image-3.jpg with video-3 complement) */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="relative aspect-[16/9] rounded-sm overflow-hidden border border-[#DCD9D1] shadow-natural-lg bg-[#E9E4DB] group">
-              <Image
-                src={ASSETS.images.ingredientStill.src}
-                alt={ASSETS.images.ingredientStill.alt}
-                fill
-                sizes="(max-width: 1024px) 100vw, 750px"
-                className="object-cover group-hover:scale-102 transition-transform duration-700"
+            <div className="rounded-sm overflow-hidden border border-[#DCD9D1] shadow-natural-lg bg-[#E9E4DB]">
+              <ScrollVideo
+                src={ASSETS.videos.ingredients.src}
+                poster={ASSETS.images.ingredientStill.src}
+                alt={ASSETS.videos.ingredients.title}
+                className="w-full"
+                overlayOpacity={0.06}
+                initialMode="scrub"
               />
-              <div className="absolute top-4 left-4 bg-[#FFFFFF]/90 backdrop-blur-md px-3 py-1.5 rounded-xs border border-[#DCD9D1] text-[11px] font-medium text-[#20211F]">
-                Studio Flatlay • 5 Whole Food Pillars
-              </div>
             </div>
 
             {/* Allergen & Testing Disclosure Banner */}
