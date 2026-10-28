@@ -84,7 +84,7 @@ export function HeroSection() {
           </div>
         </div>
 
-        {/* Cinematic Scroll-Scrub Video Canvas */}
+        {/* Cinematic Video Showcase */}
         <div className="relative rounded-sm overflow-hidden border border-[#DCD9D1] shadow-2xl bg-[#E9E4DB]">
           <ScrollVideo
             src={ASSETS.videos.hero.src}
@@ -92,29 +92,16 @@ export function HeroSection() {
             alt={ASSETS.videos.hero.title}
             className="w-full"
             overlayOpacity={0.08}
-            initialMode="scrub"
             priority={true}
-            onProgressChange={(p) => setScrollProgress(p)}
           />
 
           {/* Micro Particles Layer */}
           <PowderParticles particleCount={30} />
 
-          {/* Dynamic Editorial Scrub Phase Badges */}
-          <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
+          {/* Studio Badge */}
+          <div className="absolute top-4 left-4 z-20 pointer-events-none">
             <div className="bg-[#FFFFFF]/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-[#DCD9D1] text-[11px] font-medium text-[#20211F] shadow-xs">
-              {scrollProgress < 0.33 ? (
-                <span>Phase 01: Monolithic Matte Canister & Airtight Seal</span>
-              ) : scrollProgress < 0.66 ? (
-                <span className="text-[#6D795B]">Phase 02: Exploded Precision 32g Scoop</span>
-              ) : (
-                <span className="text-[#C99A65]">Phase 03: Micro-Milled Native Protein Column</span>
-              )}
-            </div>
-
-            <div className="hidden sm:flex items-center gap-2 bg-[#20211F]/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] uppercase font-semibold text-[#F5F3EE]">
-              <span>Scroll to Scrub Video</span>
-              <ArrowDown className="w-3 h-3 text-[#A7B39A] animate-bounce" />
+              Natural Protein Canister & Scoop Anatomy
             </div>
           </div>
         </div>

@@ -74,11 +74,6 @@ export function ScienceSection() {
                 alt={ASSETS.videos.powderMacro.title}
                 className="w-full"
                 overlayOpacity={0.08}
-                initialMode="scrub"
-                onProgressChange={(p) => {
-                  const stepIndex = Math.min(3, Math.floor(p * 4));
-                  setActiveTab(stepIndex);
-                }}
               />
             </div>
             <p className="text-[11px] text-[#6E706A] mt-3 italic text-center">

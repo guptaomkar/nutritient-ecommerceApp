@@ -37,7 +37,6 @@ export function IngredientAtlasSection() {
                 alt={ASSETS.videos.ingredients.title}
                 className="w-full"
                 overlayOpacity={0.06}
-                initialMode="scrub"
               />
             </div>
 

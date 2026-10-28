@@ -30,7 +30,6 @@ export function ProductCollectionSection({
                 alt={ASSETS.videos.collection.title}
                 className="w-full"
                 overlayOpacity={0.08}
-                initialMode="scrub"
               />
             </div>
             <div className="lg:col-span-4 p-8 lg:p-10 space-y-4 bg-[#FFFFFF]">

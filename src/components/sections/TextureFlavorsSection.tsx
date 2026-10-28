@@ -55,7 +55,6 @@ export function TextureFlavorsSection() {
                 alt={ASSETS.videos.texture.title}
                 className="w-full"
                 overlayOpacity={0.08}
-                initialMode="scrub"
               />
             </div>
             <div className="mt-3 flex items-center justify-between text-[11px] text-[#6E706A]">

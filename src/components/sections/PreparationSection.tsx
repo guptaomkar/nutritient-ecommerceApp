@@ -38,11 +38,6 @@ export function PreparationSection() {
                 alt={ASSETS.videos.preparation.title}
                 className="w-full"
                 overlayOpacity={0.08}
-                initialMode="scrub"
-                onProgressChange={(p) => {
-                  const stepIndex = Math.min(3, Math.floor(p * 4));
-                  setActiveStep(stepIndex);
-                }}
               />
             </div>
             <p className="text-[11px] text-[#6E706A] mt-3 italic text-center">
