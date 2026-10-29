@@ -11,6 +11,8 @@ import { ScrollVideo } from "@/components/media/ScrollVideo";
 export function IngredientAtlasSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -25,26 +27,37 @@ export function IngredientAtlasSection() {
       trigger: el,
       start: "top top",
       end: "bottom bottom",
-      scrub: true,
+      scrub: 0.1,
       onUpdate: (self) => {
-        setProgress(self.progress);
+        progressRef.current = self.progress;
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            setProgress(progressRef.current);
+            rafRef.current = null;
+          });
+        }
       },
     });
 
     return () => {
       st.kill();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, []);
 
-  // Map progress (0 to 1) to one of the 5 whole food ingredients
+  // Map progress (0 to 0.85) across the 5 whole food ingredients; holds the 5th until unpin
   const activeIngredientIndex = Math.min(
     PRIMARY_PRODUCT.ingredients.length - 1,
-    Math.floor(progress * PRIMARY_PRODUCT.ingredients.length)
+    Math.floor((progress / 0.85) * PRIMARY_PRODUCT.ingredients.length)
   );
   const activeIngredient = PRIMARY_PRODUCT.ingredients[activeIngredientIndex];
+  const percent = Math.min(100, Math.round((progress / 0.85) * 100));
 
   return (
-    <section ref={sectionRef} id="ingredients" className="relative h-[250vh] bg-[#F5F3EE] border-b border-[#DCD9D1]">
+    <section ref={sectionRef} id="ingredients" className="relative h-[280vh] bg-[#F5F3EE] border-b border-[#DCD9D1]">
       {/* Sticky Viewport */}
       <div className="sticky top-0 h-screen w-full flex flex-col justify-between py-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
         {/* Header Bar */}
@@ -58,7 +71,7 @@ export function IngredientAtlasSection() {
             </h2>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono bg-[#FFFFFF]/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#DCD9D1]">
-            <span>Constellation Progress: {Math.round(progress * 100)}%</span>
+            <span>Constellation Progress: {percent}%</span>
           </div>
         </div>
 
@@ -74,6 +87,7 @@ export function IngredientAtlasSection() {
                 className="w-full"
                 overlayOpacity={0.06}
                 progress={progress}
+                completionThreshold={0.85}
               />
             </div>
             <p className="text-[11px] text-[#6E706A] mt-2 italic text-center">

@@ -11,6 +11,8 @@ import { Droplet, Clock, RotateCw, Sparkles, CheckCircle2 } from "lucide-react";
 export function PreparationSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -25,22 +27,34 @@ export function PreparationSection() {
       trigger: el,
       start: "top top",
       end: "bottom bottom",
-      scrub: true,
+      scrub: 0.1,
       onUpdate: (self) => {
-        setProgress(self.progress);
+        progressRef.current = self.progress;
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            setProgress(progressRef.current);
+            rafRef.current = null;
+          });
+        }
       },
     });
 
     return () => {
       st.kill();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, []);
 
   const stepIcons = [Droplet, Clock, RotateCw, Sparkles];
-  const activeStepIndex = Math.min(3, Math.floor(progress * 4));
+  // 4 steps complete across 0 to 0.85, step 4 holds complete through 1.0
+  const activeStepIndex = Math.min(3, Math.floor((progress / 0.85) * 4));
+  const percent = Math.min(100, Math.round((progress / 0.85) * 100));
 
   return (
-    <section ref={sectionRef} id="preparation" className="relative h-[250vh] bg-[#E9E4DB] border-b border-[#DCD9D1]">
+    <section ref={sectionRef} id="preparation" className="relative h-[280vh] bg-[#E9E4DB] border-b border-[#DCD9D1]">
       {/* Sticky Viewport */}
       <div className="sticky top-0 h-screen w-full flex flex-col justify-between py-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
         {/* Header Bar */}
@@ -54,7 +68,7 @@ export function PreparationSection() {
             </h2>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono bg-[#FFFFFF]/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#DCD9D1]">
-            <span>Ritual Step: 0{activeStepIndex + 1} / 04 ({Math.round(progress * 100)}%)</span>
+            <span>Ritual Step: 0{activeStepIndex + 1} / 04 ({percent}%)</span>
           </div>
         </div>
 
@@ -70,6 +84,7 @@ export function PreparationSection() {
                 className="w-full"
                 overlayOpacity={0.06}
                 progress={progress}
+                completionThreshold={0.85}
               />
             </div>
             <p className="text-[11px] text-[#6E706A] mt-2 italic text-center">

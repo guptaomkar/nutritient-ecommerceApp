@@ -12,6 +12,7 @@ interface ScrollVideoProps {
   priority?: boolean;
   progress?: number; // 0.0 to 1.0 from ScrollTrigger
   aspectRatio?: string; // e.g. "16/9", or "none" for full bleed background
+  completionThreshold?: number; // Normalized threshold where video reaches 100% (default 0.85)
 }
 
 export function ScrollVideo({
@@ -23,6 +24,7 @@ export function ScrollVideo({
   priority = false,
   progress = 0,
   aspectRatio = "none",
+  completionThreshold = 0.85,
 }: ScrollVideoProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -30,9 +32,12 @@ export function ScrollVideo({
   const [hasError, setHasError] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
-  // Default to 10.01 seconds (verified duration of the supplied MP4s) so seeking works immediately
+  // Default to 10.01 seconds (verified duration of the supplied MP4s)
   const durationRef = useRef<number>(10.01);
   const targetTimeRef = useRef<number>(0);
+  const currentTimeRef = useRef<number>(0);
+  const isSeekingRef = useRef<boolean>(false);
+  const pendingTimeRef = useRef<number | null>(null);
   const rafIdRef = useRef<number | null>(null);
 
   // Check reduced motion preference
@@ -45,12 +50,34 @@ export function ScrollVideo({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Initialize and attach video lifecycle listeners
+  // Perform seek safely without dropping target updates or locking the decoder
+  const performSeek = (time: number, video: HTMLVideoElement) => {
+    if (isSeekingRef.current) {
+      pendingTimeRef.current = time;
+      return;
+    }
+
+    if (Math.abs(video.currentTime - time) < 0.015) {
+      return;
+    }
+
+    isSeekingRef.current = true;
+    try {
+      if ("fastSeek" in video && typeof (video as unknown as { fastSeek: (t: number) => void }).fastSeek === "function") {
+        (video as unknown as { fastSeek: (t: number) => void }).fastSeek(time);
+      } else {
+        video.currentTime = time;
+      }
+    } catch {
+      isSeekingRef.current = false;
+    }
+  };
+
+  // Video lifecycle listeners & metadata
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Guarantee the video is paused so it only moves on scroll
     video.pause();
 
     const updateDuration = () => {
@@ -63,11 +90,23 @@ export function ScrollVideo({
       updateDuration();
     }
 
+    const onSeeked = () => {
+      isSeekingRef.current = false;
+      const v = videoRef.current;
+      if (!v) return;
+
+      if (pendingTimeRef.current !== null) {
+        const next = pendingTimeRef.current;
+        pendingTimeRef.current = null;
+        performSeek(next, v);
+      }
+    };
+
     video.addEventListener("loadedmetadata", updateDuration);
     video.addEventListener("durationchange", updateDuration);
     video.addEventListener("canplay", updateDuration);
+    video.addEventListener("seeked", onSeeked);
 
-    // Prompt browser to fetch metadata
     try {
       video.load();
     } catch {
@@ -78,48 +117,78 @@ export function ScrollVideo({
       video.removeEventListener("loadedmetadata", updateDuration);
       video.removeEventListener("durationchange", updateDuration);
       video.removeEventListener("canplay", updateDuration);
+      video.removeEventListener("seeked", onSeeked);
     };
   }, [src]);
 
-  // Synchronize video currentTime with scroll progress via requestAnimationFrame
+  // Map incoming scroll progress to targetTime:
+  // Completes 100% of the video before the section unpins at completionThreshold (e.g. 0.85).
+  useEffect(() => {
+    if (prefersReducedMotion || hasError) return;
+    const dur = durationRef.current > 0 ? durationRef.current : 10.01;
+
+    // Normalizing: 0.0 to completionThreshold maps smoothly to 0.0 to 1.0 (full video).
+    // Above completionThreshold, it stays cleanly at 100% (the completed state).
+    const normalized = Math.min(1, Math.max(0, progress / completionThreshold));
+
+    // Cap slightly before exact EOF (dur - 0.04) to prevent EOF freeze/stall
+    targetTimeRef.current = Math.min(dur - 0.04, normalized * dur);
+  }, [progress, completionThreshold, prefersReducedMotion, hasError]);
+
+  // High-performance RAF seeking loop with responsive interpolation
   useEffect(() => {
     if (prefersReducedMotion || hasError) return;
 
-    const dur = durationRef.current > 0 ? durationRef.current : 10.01;
-    const clampedProgress = Math.max(0, Math.min(1, progress));
-    targetTimeRef.current = clampedProgress * dur;
+    let running = true;
+    const LERP = 0.22; // Responsive catch-up (~4 frames / 60ms) without lag
 
-    if (rafIdRef.current === null) {
-      rafIdRef.current = requestAnimationFrame(() => {
-        const video = videoRef.current;
-        if (video) {
-          const target = targetTimeRef.current;
-          // Apply currentTime directly
-          try {
-            if (Math.abs(video.currentTime - target) > 0.005) {
-              video.currentTime = target;
-            }
-          } catch {
-            // ignore seek interruptions
-          }
+    const tick = () => {
+      if (!running) return;
+
+      const video = videoRef.current;
+      if (video && video.readyState >= 2) {
+        const target = targetTimeRef.current;
+        const current = currentTimeRef.current;
+        const delta = target - current;
+
+        if (Math.abs(delta) > 0.01) {
+          const next = current + delta * LERP;
+          currentTimeRef.current = next;
+          performSeek(next, video);
+        } else if (Math.abs(delta) > 0.001) {
+          currentTimeRef.current = target;
+          performSeek(target, video);
         }
-        rafIdRef.current = null;
-      });
-    }
-  }, [progress, prefersReducedMotion, hasError]);
+      }
 
-  // Clean up any pending RAF on unmount
-  useEffect(() => {
+      rafIdRef.current = requestAnimationFrame(tick);
+    };
+
+    const video = videoRef.current;
+    if (video && isFinite(video.currentTime)) {
+      currentTimeRef.current = video.currentTime;
+    }
+
+    rafIdRef.current = requestAnimationFrame(tick);
+
     return () => {
+      running = false;
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
     };
-  }, []);
+  }, [prefersReducedMotion, hasError]);
+
+  const hasExplicitHeight =
+    /\bh-\[|h-full|h-screen|h-dvh|h-svh|h-lvh|min-h-/.test(className);
 
   const containerStyle: React.CSSProperties =
-    aspectRatio && aspectRatio !== "none" ? { aspectRatio } : {};
+    aspectRatio && aspectRatio !== "none"
+      ? { aspectRatio }
+      : !hasExplicitHeight
+        ? { aspectRatio: "16/9" }
+        : {};
 
   return (
     <div
@@ -140,7 +209,7 @@ export function ScrollVideo({
         />
       )}
 
-      {/* HTML5 Video Element: Always visible, strictly paused, scrubbed by currentTime */}
+      {/* HTML5 Video Element: Always visible, strictly scroll-driven */}
       {!prefersReducedMotion && !hasError && (
         <video
           ref={videoRef}
@@ -150,7 +219,7 @@ export function ScrollVideo({
           playsInline
           preload="auto"
           onError={() => setHasError(true)}
-          className="absolute inset-0 h-full w-full object-cover z-0"
+          className="absolute inset-0 h-full w-full object-cover z-0 pointer-events-none"
           aria-hidden="true"
         />
       )}

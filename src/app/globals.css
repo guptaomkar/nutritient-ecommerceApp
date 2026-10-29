@@ -31,7 +31,9 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  /* NOTE: Do NOT set scroll-behavior: smooth here — Lenis handles smooth
+     scrolling in JS. Combining the two causes double-smoothing, delayed
+     scroll events, and jerky video scrubbing. */
   background-color: var(--color-canvas);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;

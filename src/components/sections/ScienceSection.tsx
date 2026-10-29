@@ -10,6 +10,8 @@ import { Sparkles, Layers, ShieldCheck, Zap } from "lucide-react";
 export function ScienceSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -24,14 +26,24 @@ export function ScienceSection() {
       trigger: el,
       start: "top top",
       end: "bottom bottom",
-      scrub: true,
+      scrub: 0.1,
       onUpdate: (self) => {
-        setProgress(self.progress);
+        progressRef.current = self.progress;
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            setProgress(progressRef.current);
+            rafRef.current = null;
+          });
+        }
       },
     });
 
     return () => {
       st.kill();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, []);
 
@@ -44,7 +56,6 @@ export function ScienceSection() {
         "Engineered through fine micronization to dissolve effortlessly in under 15 seconds without clump formation, wire balls, or electric blenders.",
       icon: Sparkles,
       metric: "< 45 Microns",
-      threshold: 0.25,
     },
     {
       id: "cold-filtered",
@@ -54,7 +65,6 @@ export function ScienceSection() {
         "Cold cross-flow microfiltration preserves native immunoglobulins, lactoferrin, and glycomacropeptides without heat-induced structural degradation.",
       icon: Layers,
       metric: "Below 10°C",
-      threshold: 0.5,
     },
     {
       id: "precision-scoop",
@@ -64,7 +74,6 @@ export function ScienceSection() {
         "Each canister includes a dedicated, reinforced scoop calibrated to deliver precisely 26g of pure active protein per single level measure.",
       icon: ShieldCheck,
       metric: "32g Serving",
-      threshold: 0.75,
     },
     {
       id: "zero-foaming",
@@ -74,15 +83,15 @@ export function ScienceSection() {
         "Without synthetic dimethicone or silicones, our shake produces a gentle natural froth that settles within seconds into a silky, velvety liquid.",
       icon: Zap,
       metric: "0 Synthetic Gums",
-      threshold: 1.0,
     },
   ];
 
-  // Active annotation based on scroll progress
-  const activeIndex = Math.min(3, Math.floor(progress * 4));
+  // Active annotation completes across 0 to 0.85, and holds the 4th item at 100% until unpin
+  const activeIndex = Math.min(3, Math.floor((progress / 0.85) * 4));
+  const percent = Math.min(100, Math.round((progress / 0.85) * 100));
 
   return (
-    <section ref={sectionRef} id="science" className="relative h-[250vh] bg-[#E9E4DB] border-b border-[#DCD9D1]">
+    <section ref={sectionRef} id="science" className="relative h-[280vh] bg-[#E9E4DB] border-b border-[#DCD9D1]">
       {/* Sticky Viewport */}
       <div className="sticky top-0 h-screen w-full flex flex-col justify-between py-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
         {/* Header Bar */}
@@ -96,7 +105,7 @@ export function ScienceSection() {
             </h2>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono bg-[#FFFFFF]/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#DCD9D1]">
-            <span>Micro-Texture Progress: {Math.round(progress * 100)}%</span>
+            <span>Micro-Texture Progress: {percent}%</span>
           </div>
         </div>
 
@@ -112,6 +121,7 @@ export function ScienceSection() {
                 className="w-full"
                 overlayOpacity={0.06}
                 progress={progress}
+                completionThreshold={0.85}
               />
             </div>
             <p className="text-[11px] text-[#6E706A] mt-2 italic text-center">

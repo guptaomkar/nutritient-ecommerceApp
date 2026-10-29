@@ -29,6 +29,8 @@ export function PowderParticles({
 
     let animationFrameId: number;
     let isVisible = true;
+    let lastFrameTime = 0;
+    const FRAME_INTERVAL = 1000 / 30; // Cap particles at 30fps to save budget for video scrubbing
 
     // Resize canvas
     const handleResize = () => {
@@ -39,10 +41,19 @@ export function PowderParticles({
     handleResize();
     window.addEventListener("resize", handleResize, { passive: true });
 
-    // Track intersection
-    const observer = new IntersectionObserver(([entry]) => {
-      isVisible = entry.isIntersecting;
-    });
+    // Track intersection — fully stop the RAF loop when off-screen
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const wasVisible = isVisible;
+        isVisible = entry.isIntersecting;
+        // Restart the loop if it stopped while invisible
+        if (!wasVisible && isVisible) {
+          lastFrameTime = 0;
+          animationFrameId = requestAnimationFrame(render);
+        }
+      },
+      { threshold: 0 }
+    );
     observer.observe(canvas);
 
     // Particles array
@@ -79,12 +90,19 @@ export function PowderParticles({
     };
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
 
-    // Animation Loop
-    const render = () => {
+    // Animation Loop — throttled to 30fps and paused when off-screen
+    const render = (timestamp: number) => {
       if (!isVisible) {
+        // Don't schedule next frame — observer will restart when visible
+        return;
+      }
+
+      // Throttle to ~30fps
+      if (timestamp - lastFrameTime < FRAME_INTERVAL) {
         animationFrameId = requestAnimationFrame(render);
         return;
       }
+      lastFrameTime = timestamp;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -125,7 +143,7 @@ export function PowderParticles({
       animationFrameId = requestAnimationFrame(render);
     };
 
-    render();
+    animationFrameId = requestAnimationFrame(render);
 
     return () => {
       cancelAnimationFrame(animationFrameId);

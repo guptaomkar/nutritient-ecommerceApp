@@ -19,6 +19,8 @@ export function ProductCollectionSection({
 }: ProductCollectionSectionProps) {
   const videoSectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
   const { addItem } = useCart();
 
   useEffect(() => {
@@ -34,21 +36,33 @@ export function ProductCollectionSection({
       trigger: el,
       start: "top top",
       end: "bottom bottom",
-      scrub: true,
+      scrub: 0.1,
       onUpdate: (self) => {
-        setProgress(self.progress);
+        progressRef.current = self.progress;
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            setProgress(progressRef.current);
+            rafRef.current = null;
+          });
+        }
       },
     });
 
     return () => {
       st.kill();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, []);
+
+  const percent = Math.min(100, Math.round((progress / 0.85) * 100));
 
   return (
     <section id="collection" className="bg-[#E9E4DB] border-b border-[#DCD9D1]">
       {/* 1. Pinned Scroll-Controlled Collection Reveal (video-6.mp4) */}
-      <div ref={videoSectionRef} className="relative h-[200vh]">
+      <div ref={videoSectionRef} className="relative h-[280vh]">
         <div className="sticky top-0 h-screen w-full flex flex-col justify-between py-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
           {/* Header Bar */}
           <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -61,7 +75,7 @@ export function ProductCollectionSection({
               </h2>
             </div>
             <div className="flex items-center gap-3 text-xs font-mono bg-[#FFFFFF]/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#DCD9D1]">
-              <span>Collection Scrub: {Math.round(progress * 100)}%</span>
+              <span>Collection Scrub: {percent}%</span>
             </div>
           </div>
 
@@ -74,6 +88,7 @@ export function ProductCollectionSection({
               className="w-full"
               overlayOpacity={0.06}
               progress={progress}
+              completionThreshold={0.85}
             />
           </div>
 

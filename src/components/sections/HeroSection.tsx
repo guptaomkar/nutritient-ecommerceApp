@@ -14,6 +14,8 @@ import { VARIANTS } from "@/lib/data";
 export function HeroSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
   const { addItem } = useCart();
 
   useEffect(() => {
@@ -25,18 +27,30 @@ export function HeroSection() {
 
     gsap.registerPlugin(ScrollTrigger);
 
+    // Responsive 0.1 scrub synced directly with Lenis smooth scrolling
     const st = ScrollTrigger.create({
       trigger: el,
       start: "top top",
       end: "bottom bottom",
-      scrub: true,
+      scrub: 0.1,
       onUpdate: (self) => {
-        setProgress(self.progress);
+        progressRef.current = self.progress;
+
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            setProgress(progressRef.current);
+            rafRef.current = null;
+          });
+        }
       },
     });
 
     return () => {
       st.kill();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
   }, []);
 
@@ -53,8 +67,10 @@ export function HeroSection() {
     });
   };
 
+  const scrubPercent = Math.min(100, Math.round((progress / 0.85) * 100));
+
   return (
-    <section ref={sectionRef} className="relative h-[250vh] bg-[#F5F3EE]">
+    <section ref={sectionRef} className="relative h-[280vh] bg-[#F5F3EE]">
       {/* Sticky Viewport Container */}
       <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-between">
         {/* Full-Bleed Video Background with Scroll-Controlled Seeking */}
@@ -68,6 +84,7 @@ export function HeroSection() {
             priority={true}
             progress={progress}
             aspectRatio="none"
+            completionThreshold={0.85}
           />
           {/* Subtle Ambient Micro-Particles */}
           <PowderParticles particleCount={30} />
@@ -83,13 +100,13 @@ export function HeroSection() {
             </div>
 
             <div className="hidden sm:flex items-center gap-3 bg-[#20211F]/80 backdrop-blur-md px-3 py-1 rounded-full text-xs text-[#F5F3EE] font-mono">
-              <span>Scrub Progress: {Math.round(progress * 100)}%</span>
+              <span>Scrub Progress: {scrubPercent}%</span>
             </div>
           </div>
 
           {/* Dynamic Editorial Narrative Driven by Scroll Progress */}
           <div className="max-w-3xl my-auto space-y-6 pointer-events-auto transition-all duration-300">
-            {progress < 0.4 ? (
+            {progress < 0.3 ? (
               /* Phase 01: Hero Intro */
               <div className="space-y-4 animate-in fade-in duration-300">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-[#E9E4DB] drop-shadow-xs">
@@ -118,7 +135,7 @@ export function HeroSection() {
                   </button>
                 </div>
               </div>
-            ) : progress < 0.75 ? (
+            ) : progress < 0.65 ? (
               /* Phase 02: Exploded Anatomy */
               <div className="space-y-4 animate-in fade-in duration-300">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A7B39A] drop-shadow-xs">
@@ -136,7 +153,7 @@ export function HeroSection() {
                 </div>
               </div>
             ) : (
-              /* Phase 03: Native Micro-Milled Protein */
+              /* Phase 03: Native Micro-Milled Protein - reaches 100% at 0.85 and holds complete */
               <div className="space-y-4 animate-in fade-in duration-300">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-[#C99A65] drop-shadow-xs">
                   Cold Microfiltration
